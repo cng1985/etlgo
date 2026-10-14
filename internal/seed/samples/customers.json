@@ -1,0 +1,10 @@
+[
+  {"id": 1, "name": "张伟", "city": "杭州", "email": "zhangwei@example.com", "vip": true},
+  {"id": 2, "name": "李娜", "city": "上海", "email": "lina@example.com", "vip": true},
+  {"id": 3, "name": "王芳", "city": "成都", "email": "wangfang@example.com", "vip": false},
+  {"id": 4, "name": "赵敏", "city": "北京", "email": "zhaomin@example.com", "vip": true},
+  {"id": 5, "name": "陈晨", "city": "深圳", "email": "chenchen@example.com", "vip": false},
+  {"id": 6, "name": "刘洋", "city": "南京", "email": "liuyang@example.com", "vip": false},
+  {"id": 7, "name": "周洁", "city": "武汉", "email": "zhoujie@example.com", "vip": true},
+  {"id": 8, "name": "吴磊", "city": "西安", "email": "wulei@example.com", "vip": false}
+]
