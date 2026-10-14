@@ -36,6 +36,10 @@ func ExtractCSV(path, delimiter string, hasHeader bool) (*Table, error) {
 	if err != nil {
 		return nil, fmt.Errorf("解析 CSV 失败: %w", err)
 	}
+	return tableFromRows(records, hasHeader)
+}
+
+func tableFromRows(records [][]string, hasHeader bool) (*Table, error) {
 	if len(records) == 0 {
 		return &Table{}, nil
 	}
@@ -45,7 +49,13 @@ func ExtractCSV(path, delimiter string, hasHeader bool) (*Table, error) {
 		columns = sanitizeHeaders(records[0])
 		start = 1
 	} else {
-		columns = make([]string, len(records[0]))
+		width := len(records[0])
+		for _, rec := range records[1:] {
+			if len(rec) > width {
+				width = len(rec)
+			}
+		}
+		columns = make([]string, width)
 		for i := range columns {
 			columns[i] = fmt.Sprintf("col_%d", i+1)
 		}
@@ -101,18 +111,15 @@ func ExtractHTTP(ctx context.Context, url, dataPath string) (*Table, error) {
 }
 
 func ExtractSQLite(db *gorm.DB, query string) (*Table, error) {
+	return readSQL(context.Background(), db, query)
+}
+
+func readSQL(ctx context.Context, db *gorm.DB, query string) (*Table, error) {
 	q := strings.TrimSpace(query)
-	if q == "" {
-		return nil, fmt.Errorf("SQL 不能为空")
+	if err := assertReadOnlySQL(q); err != nil {
+		return nil, err
 	}
-	lower := strings.ToLower(q)
-	if !(strings.HasPrefix(lower, "select") || strings.HasPrefix(lower, "with")) {
-		return nil, fmt.Errorf("仅允许 SELECT 查询")
-	}
-	if strings.Contains(q, ";") {
-		return nil, fmt.Errorf("不允许多条 SQL")
-	}
-	rows, err := db.Raw(q).Rows()
+	rows, err := db.WithContext(ctx).Raw(q).Rows()
 	if err != nil {
 		return nil, fmt.Errorf("执行查询失败: %w", err)
 	}

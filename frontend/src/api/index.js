@@ -69,9 +69,13 @@ export function formatTime(value) {
 
 export const sourceTypeLabel = {
   csv: 'CSV',
+  excel: 'Excel',
   json: 'JSON',
   sqlite: 'SQLite',
   http: 'HTTP',
+  mysql: 'MySQL',
+  pg: 'PostgreSQL',
+  sqlserver: 'SQL Server',
 }
 
 export const targetTypeLabel = {

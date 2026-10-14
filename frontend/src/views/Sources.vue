@@ -9,7 +9,7 @@
     <div class="panel">
       <el-table :data="filtered">
         <el-table-column prop="name" label="名称" min-width="180" />
-        <el-table-column label="类型" width="120">
+        <el-table-column label="类型" width="140">
           <template #default="{ row }">
             <el-tag effect="plain">{{ sourceTypeLabel[row.type] || row.type }}</el-tag>
           </template>
@@ -30,14 +30,18 @@
       </el-table>
     </div>
 
-    <el-dialog v-model="editor.visible" :title="editor.id ? '编辑数据源' : '新建数据源'" width="560px">
+    <el-dialog v-model="editor.visible" :title="editor.id ? '编辑数据源' : '新建数据源'" width="640px">
       <el-form label-position="top">
         <el-form-item label="名称">
           <el-input v-model="editor.name" />
         </el-form-item>
         <el-form-item label="类型">
-          <el-select v-model="editor.type" style="width: 100%">
+          <el-select v-model="editor.type" style="width: 100%" @change="onTypeChange">
             <el-option label="CSV 文件" value="csv" />
+            <el-option label="Excel 文件" value="excel" />
+            <el-option label="MySQL" value="mysql" />
+            <el-option label="PostgreSQL" value="pg" />
+            <el-option label="SQL Server" value="sqlserver" />
             <el-option label="JSON 文件" value="json" />
             <el-option label="SQLite 查询" value="sqlite" />
             <el-option label="HTTP JSON" value="http" />
@@ -56,6 +60,19 @@
             </el-form-item>
           </div>
         </template>
+        <template v-else-if="editor.type === 'excel'">
+          <el-form-item label="相对路径">
+            <el-input v-model="editor.path" placeholder="uploads/orders.xlsx" />
+          </el-form-item>
+          <div class="grid-2">
+            <el-form-item label="工作表">
+              <el-input v-model="editor.sheet" placeholder="留空读取第一张" />
+            </el-form-item>
+            <el-form-item label="包含表头">
+              <el-switch v-model="editor.hasHeader" />
+            </el-form-item>
+          </div>
+        </template>
         <el-form-item v-else-if="editor.type === 'json'" label="相对路径">
           <el-input v-model="editor.path" placeholder="samples/customers.json" />
         </el-form-item>
@@ -66,6 +83,46 @@
           <el-form-item label="SELECT 语句">
             <el-input v-model="editor.query" type="textarea" :rows="4" />
           </el-form-item>
+        </template>
+        <template v-else-if="isDatabase(editor.type)">
+          <div class="grid-2">
+            <el-form-item label="主机">
+              <el-input v-model="editor.host" placeholder="127.0.0.1" />
+            </el-form-item>
+            <el-form-item label="端口">
+              <el-input-number v-model="editor.port" :min="1" :max="65535" controls-position="right" style="width: 100%" />
+            </el-form-item>
+          </div>
+          <div class="grid-2">
+            <el-form-item label="用户名">
+              <el-input v-model="editor.user" />
+            </el-form-item>
+            <el-form-item label="密码">
+              <el-input v-model="editor.password" type="password" show-password />
+            </el-form-item>
+          </div>
+          <el-form-item label="数据库">
+            <el-input v-model="editor.database" />
+          </el-form-item>
+          <el-form-item v-if="editor.type === 'pg'" label="SSL">
+            <el-select v-model="editor.sslMode" style="width: 100%">
+              <el-option label="disable" value="disable" />
+              <el-option label="require" value="require" />
+              <el-option label="verify-ca" value="verify-ca" />
+              <el-option label="verify-full" value="verify-full" />
+            </el-select>
+          </el-form-item>
+          <el-form-item v-else-if="editor.type === 'sqlserver'" label="加密">
+            <el-select v-model="editor.sslMode" style="width: 100%">
+              <el-option label="不加密" value="disable" />
+              <el-option label="加密，不校验证书" value="false" />
+              <el-option label="加密并校验证书" value="true" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="SELECT 语句">
+            <el-input v-model="editor.query" type="textarea" :rows="4" placeholder="select id, name from orders" />
+          </el-form-item>
+          <p class="hint">只允许单条 SELECT 或 WITH 查询。</p>
         </template>
         <template v-else>
           <el-form-item label="URL">
@@ -82,7 +139,7 @@
       </template>
     </el-dialog>
 
-    <el-dialog v-model="upload.visible" title="上传 CSV / JSON" width="480px">
+    <el-dialog v-model="upload.visible" title="上传 CSV / Excel / JSON" width="480px">
       <el-form label-position="top">
         <el-form-item label="名称">
           <el-input v-model="upload.name" placeholder="可留空，默认使用文件名" />
@@ -90,11 +147,12 @@
         <el-form-item label="类型">
           <el-select v-model="upload.type" style="width: 100%">
             <el-option label="CSV" value="csv" />
+            <el-option label="Excel" value="excel" />
             <el-option label="JSON" value="json" />
           </el-select>
         </el-form-item>
         <el-form-item label="文件">
-          <input type="file" :accept="upload.type === 'csv' ? '.csv,text/csv' : '.json,application/json'" @change="onFile" />
+          <input type="file" :accept="uploadAccept" @change="onFile" />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -125,6 +183,11 @@ const filtered = computed(() => {
 
 const editor = reactive(blankEditor())
 const upload = reactive({ visible: false, name: '', type: 'csv', file: null, saving: false })
+const uploadAccept = computed(() => {
+  if (upload.type === 'excel') return '.xlsx,.xlsm,.xltx'
+  if (upload.type === 'json') return '.json,application/json'
+  return '.csv,text/csv'
+})
 const previewer = reactive({ visible: false, title: '', columns: [], rows: [], total: 0, truncated: false })
 
 function blankEditor() {
@@ -137,18 +200,57 @@ function blankEditor() {
     path: '',
     delimiter: ',',
     hasHeader: true,
+    sheet: '',
     query: '',
     url: '',
     dataPath: '',
+    host: '127.0.0.1',
+    port: 3306,
+    user: '',
+    password: '',
+    database: '',
+    sslMode: 'disable',
   }
+}
+
+function isDatabase(type) {
+  return type === 'mysql' || type === 'pg' || type === 'sqlserver'
+}
+
+function defaultPort(type) {
+  if (type === 'mysql') return 3306
+  if (type === 'pg') return 5432
+  if (type === 'sqlserver') return 1433
+  return 0
+}
+
+function onTypeChange(type) {
+  const port = defaultPort(type)
+  if (port) editor.port = port
+  if (type === 'pg' || type === 'sqlserver') editor.sslMode = 'disable'
 }
 
 function configOf(form) {
   if (form.type === 'csv') {
     return { path: form.path.trim(), delimiter: form.delimiter || ',', hasHeader: form.hasHeader }
   }
+  if (form.type === 'excel') {
+    return { path: form.path.trim(), sheet: form.sheet.trim(), hasHeader: form.hasHeader }
+  }
   if (form.type === 'json') return { path: form.path.trim() }
   if (form.type === 'sqlite') return { path: form.path.trim(), query: form.query.trim() }
+  if (isDatabase(form.type)) {
+    const config = {
+      host: form.host.trim(),
+      port: Number(form.port) || 0,
+      user: form.user.trim(),
+      password: form.password,
+      database: form.database.trim(),
+      query: form.query.trim(),
+    }
+    if (form.type === 'pg' || form.type === 'sqlserver') config.sslMode = form.sslMode || 'disable'
+    return config
+  }
   return { url: form.url.trim(), dataPath: form.dataPath.trim() }
 }
 
@@ -170,9 +272,16 @@ function openEdit(row) {
     path: cfg.path || '',
     delimiter: cfg.delimiter || ',',
     hasHeader: cfg.hasHeader !== false,
+    sheet: cfg.sheet || '',
     query: cfg.query || '',
     url: cfg.url || '',
     dataPath: cfg.dataPath || '',
+    host: cfg.host || '127.0.0.1',
+    port: Number(cfg.port) || defaultPort(row.type) || 3306,
+    user: cfg.user || '',
+    password: cfg.password || '',
+    database: cfg.database || '',
+    sslMode: cfg.sslMode || 'disable',
   })
 }
 
