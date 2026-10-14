@@ -42,15 +42,19 @@ make build
 ## 目录
 
 ```text
-cmd/server          程序入口，用 FX 组装依赖
-internal/engine     抽取、转换、加载
-internal/service    数据源、管道、调度和数据集
-internal/handler    Gin 接口
-internal/store      GORM / SQLite
-frontend            Vue 3 控制台
+cmd/server             程序入口，只启动 app.Module
+internal/app           组装各 FX 模块
+internal/config        配置模块
+internal/store         SQLite / GORM 模块
+internal/service       数据源、管道、数据集模块，管道模块负责调度
+internal/handler       HTTP 处理模块
+internal/server        Gin 服务模块
+internal/seed          示例数据模块
+internal/engine        抽取、转换、加载
+frontend               Vue 3 控制台
 ```
 
-FX 在 `cmd/server/main.go` 里提供配置、数据库、服务、路由和 HTTP 服务，并在生命周期里启动调度器。
+每个包导出自己的 `fx.Module`。`internal/app` 把配置、存储、服务、示例数据、接口和 HTTP 服务按模块拼起来，`main` 不再逐个注册构造函数。管道模块在生命周期里启动调度器，server 模块在生命周期里监听端口。
 
 ## 转换步骤
 
