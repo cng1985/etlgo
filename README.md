@@ -29,7 +29,15 @@ go build -o bin/etlgo ./cmd/server
 ./bin/etlgo
 ```
 
-`make build` 会先跑这个脚本再编译。改完前端后也可以执行 `go generate ./web`，它调用的是同一份脚本。
+Windows 使用同一套嵌入流程：
+
+```bat
+scripts\embed-vue.bat
+go build -o bin\etlgo.exe .\cmd\server
+.\bin\etlgo.exe
+```
+
+`scripts\embed-vue.bat` 会调用同目录的 `embed-vue.ps1`。`make build` 在 Windows 上走这个脚本，在 Linux / macOS 上走 `scripts/embed-vue.sh`。改完前端后也可以执行 `go generate ./web`，它调用的是 bash 脚本。
 
 打开 `http://127.0.0.1:8080`。
 
@@ -58,7 +66,8 @@ internal/server        Gin 服务模块
 internal/seed          示例数据模块
 internal/engine        抽取、转换、加载
 frontend               Vue 3 控制台
-scripts/embed-vue.sh   把 Vue 构建结果写入 web/dist，供二进制嵌入
+scripts/embed-vue.sh   Linux / macOS：把 Vue 构建结果写入 web/dist
+scripts/embed-vue.bat  Windows：把 Vue 构建结果写入 web/dist
 ```
 
 每个包导出自己的 `fx.Module`。`internal/app` 把配置、存储、服务、查询、示例数据、接口和 HTTP 服务按模块拼起来，`main` 不再逐个注册构造函数。管道模块在生命周期里启动调度器，server 模块在生命周期里监听端口。
