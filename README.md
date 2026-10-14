@@ -21,12 +21,14 @@ npm --prefix frontend run dev
 
 打开 `http://127.0.0.1:5173`。接口由 Vite 代理到 `http://127.0.0.1:8080`。
 
-生产构建后，由同一个 Go 进程同时提供页面和接口：
+生产构建把 Vue 页面嵌进同一个 Go 二进制。`web` 包通过 `//go:embed all:dist` 嵌入 `web/dist`，启动后页面和接口都在 `:8080`：
 
 ```bash
 make build
 ./bin/etlgo
 ```
+
+打开 `http://127.0.0.1:8080`。
 
 环境变量：
 
