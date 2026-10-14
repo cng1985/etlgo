@@ -1,4 +1,4 @@
-.PHONY: test backend frontend build
+.PHONY: test backend frontend embed build
 
 test:
 	go test ./...
@@ -9,6 +9,8 @@ backend:
 frontend:
 	cd frontend && npm run dev
 
-build:
-	cd frontend && npm run build
+embed:
+	bash scripts/embed-vue.sh
+
+build: embed
 	go build -o bin/etlgo ./cmd/server

@@ -21,12 +21,15 @@ npm --prefix frontend run dev
 
 打开 `http://127.0.0.1:5173`。接口由 Vite 代理到 `http://127.0.0.1:8080`。
 
-生产构建把 Vue 页面嵌进同一个 Go 二进制。`web` 包通过 `//go:embed all:dist` 嵌入 `web/dist`，启动后页面和接口都在 `:8080`：
+生产构建把 Vue 页面嵌进同一个 Go 二进制。先用脚本把前端生成到 `web/dist`，`web` 包再通过 `//go:embed all:dist` 嵌进去。启动后页面和接口都在 `:8080`：
 
 ```bash
-make build
+bash scripts/embed-vue.sh
+go build -o bin/etlgo ./cmd/server
 ./bin/etlgo
 ```
+
+`make build` 会先跑这个脚本再编译。改完前端后也可以执行 `go generate ./web`，它调用的是同一份脚本。
 
 打开 `http://127.0.0.1:8080`。
 
@@ -55,6 +58,7 @@ internal/server        Gin 服务模块
 internal/seed          示例数据模块
 internal/engine        抽取、转换、加载
 frontend               Vue 3 控制台
+scripts/embed-vue.sh   把 Vue 构建结果写入 web/dist，供二进制嵌入
 ```
 
 每个包导出自己的 `fx.Module`。`internal/app` 把配置、存储、服务、查询、示例数据、接口和 HTTP 服务按模块拼起来，`main` 不再逐个注册构造函数。管道模块在生命周期里启动调度器，server 模块在生命周期里监听端口。
