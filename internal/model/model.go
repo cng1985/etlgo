@@ -19,6 +19,7 @@ const (
 
 type Source struct {
 	ID        uint      `json:"id" gorm:"primaryKey"`
+	TenantID  string    `json:"-" gorm:"size:64;not null;default:'default';index"`
 	Name      string    `json:"name" gorm:"size:120;not null"`
 	Type      string    `json:"type" gorm:"size:32;not null;index"`
 	Config    string    `json:"config" gorm:"type:text;not null"`
@@ -28,6 +29,7 @@ type Source struct {
 
 type Pipeline struct {
 	ID              uint      `json:"id" gorm:"primaryKey"`
+	TenantID        string    `json:"-" gorm:"size:64;not null;default:'default';index"`
 	Name            string    `json:"name" gorm:"size:120;not null"`
 	Description     string    `json:"description" gorm:"size:500"`
 	Enabled         bool      `json:"enabled" gorm:"not null;default:true"`
@@ -42,6 +44,7 @@ type Pipeline struct {
 
 type Run struct {
 	ID            uint       `json:"id" gorm:"primaryKey"`
+	TenantID      string     `json:"-" gorm:"size:64;not null;default:'default';index"`
 	PipelineID    uint       `json:"pipelineId" gorm:"index;not null"`
 	PipelineName  string     `json:"pipelineName" gorm:"size:120;not null"`
 	Trigger       string     `json:"trigger" gorm:"size:32;not null"`
@@ -57,6 +60,7 @@ type Run struct {
 
 type Dataset struct {
 	ID         uint      `json:"id" gorm:"primaryKey"`
+	TenantID   string    `json:"-" gorm:"size:64;not null;default:'default';index"`
 	Name       string    `json:"name" gorm:"uniqueIndex;size:128;not null"`
 	Kind       string    `json:"kind" gorm:"size:32;not null"`
 	Path       string    `json:"path" gorm:"size:500"`

@@ -36,6 +36,7 @@ make build
 | `DATA_DIR` | `data` | 样本、上传和导出目录 |
 | `DB_PATH` | `data/etl.db` | SQLite 文件 |
 | `GIN_MODE` | `release` | Gin 运行模式 |
+| `API_TOKEN` | `etl-demo-token` | 接口令牌，请求头使用 `Authorization: Bearer <token>` |
 
 首次启动会写入示例订单、客户和产品，并创建三条管道。
 
@@ -54,7 +55,21 @@ internal/engine        抽取、转换、加载
 frontend               Vue 3 控制台
 ```
 
-每个包导出自己的 `fx.Module`。`internal/app` 把配置、存储、服务、示例数据、接口和 HTTP 服务按模块拼起来，`main` 不再逐个注册构造函数。管道模块在生命周期里启动调度器，server 模块在生命周期里监听端口。
+每个包导出自己的 `fx.Module`。`internal/app` 把配置、存储、服务、查询、示例数据、接口和 HTTP 服务按模块拼起来，`main` 不再逐个注册构造函数。管道模块在生命周期里启动调度器，server 模块在生命周期里监听端口。
+
+## 接口
+
+业务接口统一为 `POST /api/v1/{resource}/{action}`，请求体是独立的 JSON 对象，成功响应为：
+
+```json
+{"code":200,"msg":"success","data":{}}
+```
+
+分页接口额外返回 `page`、`size`、`total`、`totalPage` 和 `responseType: "page"`。页码从 1 开始，`size` 最大 200。时间为 `yyyy-MM-dd HH:mm:ss`。
+
+动态查询走 `POST /api/v1/query/search`、`/query/list`、`/query/one`，模型名如 `pageForSource`、`listPipeline`、`oneRun`。过滤条件只接受白名单字段，排序字段同样白名单，不会把过滤值拼进 SQL。请求里不能带 `tenantId`，服务端固定使用当前租户。
+
+文件上传使用 `POST /api/v1/file/upload`，表单字段为 `file`、`businessType`、`businessId`。进程探针 `GET /health` 不要求令牌。
 
 ## 转换步骤
 
