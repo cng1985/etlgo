@@ -10,6 +10,7 @@ import (
 	"etlgo/internal/config"
 	"etlgo/internal/engine"
 	"etlgo/internal/model"
+	"etlgo/internal/tenant"
 
 	"gorm.io/gorm"
 )
@@ -32,19 +33,22 @@ func Apply(db *gorm.DB, cfg *config.Config) error {
 		return nil
 	}
 	orders := model.Source{
-		Name:   "示例订单 CSV",
-		Type:   model.SourceCSV,
-		Config: `{"path":"samples/orders.csv","delimiter":",","hasHeader":true}`,
+		TenantID: tenant.Default,
+		Name:     "示例订单 CSV",
+		Type:     model.SourceCSV,
+		Config:   `{"path":"samples/orders.csv","delimiter":",","hasHeader":true}`,
 	}
 	customers := model.Source{
-		Name:   "示例客户 JSON",
-		Type:   model.SourceJSON,
-		Config: `{"path":"samples/customers.json"}`,
+		TenantID: tenant.Default,
+		Name:     "示例客户 JSON",
+		Type:     model.SourceJSON,
+		Config:   `{"path":"samples/customers.json"}`,
 	}
 	products := model.Source{
-		Name:   "示例产品表",
-		Type:   model.SourceSQLite,
-		Config: `{"query":"select sku, name, category, price, stock from seed_products"}`,
+		TenantID: tenant.Default,
+		Name:     "示例产品表",
+		Type:     model.SourceSQLite,
+		Config:   `{"query":"select sku, name, category, price, stock from seed_products"}`,
 	}
 	if err := db.Create(&orders).Error; err != nil {
 		return err
@@ -75,6 +79,7 @@ func Apply(db *gorm.DB, cfg *config.Config) error {
 	}
 	pipelines := []model.Pipeline{
 		{
+			TenantID:        tenant.Default,
 			Name:            "已支付订单汇总",
 			Description:     "从订单 CSV 中保留已支付记录，计算金额合计并写入 SQLite。",
 			Enabled:         true,
@@ -85,6 +90,7 @@ func Apply(db *gorm.DB, cfg *config.Config) error {
 			ScheduleMinutes: 0,
 		},
 		{
+			TenantID:        tenant.Default,
 			Name:            "会员客户导入",
 			Description:     "从客户 JSON 中筛出会员，生成展示名后写入 SQLite。",
 			Enabled:         true,
@@ -95,6 +101,7 @@ func Apply(db *gorm.DB, cfg *config.Config) error {
 			ScheduleMinutes: 0,
 		},
 		{
+			TenantID:        tenant.Default,
 			Name:            "低库存产品导出",
 			Description:     "查询产品表，导出库存低于 40 的记录为 CSV。",
 			Enabled:         true,

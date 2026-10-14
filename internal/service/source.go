@@ -15,6 +15,7 @@ import (
 	"etlgo/internal/engine"
 	"etlgo/internal/model"
 	"etlgo/internal/store"
+	"etlgo/internal/tenant"
 
 	"gorm.io/gorm"
 )
@@ -42,7 +43,7 @@ func (s *SourceService) List() ([]model.Source, error) {
 
 func (s *SourceService) Get(id uint) (*model.Source, error) {
 	var item model.Source
-	if err := s.db.First(&item, id).Error; err != nil {
+	if err := tenant.Scope(s.db).First(&item, id).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, miss("数据源不存在")
 		}
@@ -85,7 +86,7 @@ func (s *SourceService) Delete(id uint) error {
 		return err
 	}
 	var n int64
-	if err := s.db.Model(&model.Pipeline{}).Where("source_id = ?", id).Count(&n).Error; err != nil {
+	if err := tenant.Scope(s.db.Model(&model.Pipeline{})).Where("source_id = ?", id).Count(&n).Error; err != nil {
 		return err
 	}
 	if n > 0 {
@@ -230,7 +231,7 @@ func (s *SourceService) build(in SourceInput) (*model.Source, error) {
 	if err := s.validateConfig(in.Type, in.Config); err != nil {
 		return nil, err
 	}
-	return &model.Source{Name: name, Type: in.Type, Config: string(in.Config)}, nil
+	return &model.Source{TenantID: tenant.Default, Name: name, Type: in.Type, Config: string(in.Config)}, nil
 }
 
 func (s *SourceService) validateConfig(kind string, raw json.RawMessage) error {

@@ -5,6 +5,7 @@ import (
 
 	"etlgo/internal/config"
 	"etlgo/internal/model"
+	"etlgo/internal/tenant"
 
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
@@ -34,6 +35,11 @@ func open(path string, migrate bool) (*gorm.DB, error) {
 	if migrate {
 		if err := db.AutoMigrate(&model.Source{}, &model.Pipeline{}, &model.Run{}, &model.Dataset{}); err != nil {
 			return nil, err
+		}
+		for _, table := range []string{"sources", "pipelines", "runs", "datasets"} {
+			if err := db.Exec("UPDATE "+table+" SET tenant_id = ? WHERE tenant_id IS NULL OR tenant_id = ''", tenant.Default).Error; err != nil {
+				return nil, err
+			}
 		}
 	}
 	return db, nil

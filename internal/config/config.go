@@ -10,6 +10,7 @@ type Config struct {
 	DBPath  string
 	DataDir string
 	GinMode string
+	Token   string
 }
 
 func New() (*Config, error) {
@@ -32,6 +33,7 @@ func New() (*Config, error) {
 		DBPath:  dbPath,
 		DataDir: abs,
 		GinMode: env("GIN_MODE", "release"),
+		Token:   env("API_TOKEN", "etl-demo-token"),
 	}, nil
 }
 

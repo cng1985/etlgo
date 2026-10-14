@@ -1,46 +1,67 @@
 import axios from 'axios'
 
-const http = axios.create({ baseURL: '/api', timeout: 60000 })
+const token = import.meta.env.VITE_API_TOKEN || 'etl-demo-token'
+
+const http = axios.create({
+  baseURL: '/api/v1',
+  timeout: 60000,
+  headers: {
+    Authorization: `Bearer ${token}`,
+  },
+})
 
 http.interceptors.response.use(
   (response) => response,
   (error) => {
-    const message = error.response?.data?.error || error.message || '请求失败'
+    const message = error.response?.data?.msg || error.message || '请求失败'
     return Promise.reject(new Error(message))
   },
 )
 
+async function call(path, body) {
+  const response = await http.post(path, body ?? {})
+  return response.data
+}
+
 export const api = {
-  health: () => http.get('/health').then((r) => r.data),
-  stats: () => http.get('/stats').then((r) => r.data),
-  sources: () => http.get('/sources').then((r) => r.data),
-  createSource: (body) => http.post('/sources', body).then((r) => r.data),
-  updateSource: (id, body) => http.put(`/sources/${id}`, body).then((r) => r.data),
-  deleteSource: (id) => http.delete(`/sources/${id}`),
-  previewSource: (id) => http.post(`/sources/${id}/preview?limit=20`).then((r) => r.data),
+  health: () => call('/health/get').then((body) => body.data),
+  stats: () => call('/stats/get').then((body) => body.data),
+  sources: () => call('/source/list', { page: 1, size: 200 }).then((body) => body.data),
+  createSource: (body) => call('/source/create', body).then((body) => body.data),
+  updateSource: (id, body) => call('/source/update', { ...body, id }).then((body) => body.data),
+  deleteSource: (id) => call('/source/delete', { id }),
+  previewSource: (id) => call('/source/preview', { id, limit: 20 }).then((body) => body.data),
   uploadSource: (form) => {
     const data = new FormData()
     data.append('file', form.file)
-    data.append('name', form.name || '')
-    data.append('type', form.type)
-    return http.post('/uploads', data).then((r) => r.data)
+    data.append('businessType', form.type)
+    data.append('businessId', form.name || '')
+    return http.post('/file/upload', data).then((response) => response.data.data)
   },
-  pipelines: () => http.get('/pipelines').then((r) => r.data),
-  pipeline: (id) => http.get(`/pipelines/${id}`).then((r) => r.data),
-  createPipeline: (body) => http.post('/pipelines', body).then((r) => r.data),
-  updatePipeline: (id, body) => http.put(`/pipelines/${id}`, body).then((r) => r.data),
-  deletePipeline: (id) => http.delete(`/pipelines/${id}`),
-  previewPipeline: (body) => http.post('/pipelines/preview', body).then((r) => r.data),
-  runPipeline: (id) => http.post(`/pipelines/${id}/run`).then((r) => r.data),
-  runs: (params) => http.get('/runs', { params }).then((r) => r.data),
-  run: (id) => http.get(`/runs/${id}`).then((r) => r.data),
-  datasets: () => http.get('/datasets').then((r) => r.data),
-  previewDataset: (name) => http.get(`/datasets/${name}/preview?limit=50`).then((r) => r.data),
-  deleteDataset: (name) => http.delete(`/datasets/${name}`),
+  pipelines: () => call('/pipeline/list', { page: 1, size: 200 }).then((body) => body.data),
+  pipeline: (id) => call('/pipeline/get', { id }).then((body) => body.data),
+  createPipeline: (body) => call('/pipeline/create', body).then((body) => body.data),
+  updatePipeline: (id, body) => call('/pipeline/update', { ...body, id }).then((body) => body.data),
+  deletePipeline: (id) => call('/pipeline/delete', { id }),
+  previewPipeline: (body) => call('/pipeline/preview', body).then((body) => body.data),
+  runPipeline: (id) => call('/pipeline/execute', { id }).then((body) => body.data),
+  runs: (body) => call('/run/list', { page: 1, size: 100, ...body }).then((body) => body.data),
+  run: (id) => call('/run/get', { id }).then((body) => body.data),
+  datasets: () => call('/dataset/list', { page: 1, size: 200 }).then((body) => body.data),
+  previewDataset: (name) => call('/dataset/preview', { name, limit: 50 }).then((body) => body.data),
+  exportDataset: (name, format) => call('/dataset/export', { name, format }).then((body) => body.data),
+  deleteDataset: (name) => call('/dataset/delete', { name }),
+}
+
+export function readJSON(value, fallback) {
+  if (value == null || value === '') return fallback
+  if (typeof value === 'string') return JSON.parse(value)
+  return value
 }
 
 export function formatTime(value) {
   if (!value) return '—'
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(value)) return value
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
   return date.toLocaleString('zh-CN', { hour12: false })

@@ -113,7 +113,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import DataTable from '../components/DataTable.vue'
-import { api, formatTime, sourceTypeLabel } from '../api'
+import { api, formatTime, readJSON, sourceTypeLabel } from '../api'
 
 const items = ref([])
 const keyword = ref('')
@@ -161,7 +161,7 @@ function openCreate() {
 }
 
 function openEdit(row) {
-  const cfg = JSON.parse(row.config || '{}')
+  const cfg = readJSON(row.config, {})
   Object.assign(editor, blankEditor(), {
     visible: true,
     id: row.id,

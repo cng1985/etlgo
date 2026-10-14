@@ -107,7 +107,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import DataTable from '../components/DataTable.vue'
 import StepEditor from '../components/StepEditor.vue'
-import { api, stepTypeLabel } from '../api'
+import { api, readJSON, stepTypeLabel } from '../api'
 
 const route = useRoute()
 const router = useRouter()
@@ -238,8 +238,8 @@ onMounted(async () => {
     sources.value = await api.sources()
     if (!pipelineId.value) return
     const item = await api.pipeline(pipelineId.value)
-    const target = JSON.parse(item.targetConfig || '{}')
-    const steps = JSON.parse(item.steps || '[]').map((step) => ({ ...step, _id: newId() }))
+    const target = readJSON(item.targetConfig, {})
+    const steps = readJSON(item.steps, []).map((step) => ({ ...step, _id: newId() }))
     Object.assign(form, {
       name: item.name,
       description: item.description,
