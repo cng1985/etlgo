@@ -8,6 +8,7 @@ import (
 	"etlgo/internal/config"
 	"etlgo/internal/engine"
 	"etlgo/internal/model"
+	"etlgo/internal/tenant"
 
 	"gorm.io/gorm"
 )
@@ -29,7 +30,7 @@ func (s *DatasetService) List() ([]model.Dataset, error) {
 
 func (s *DatasetService) Get(name string) (*model.Dataset, error) {
 	var item model.Dataset
-	if err := s.db.Where("name = ?", name).First(&item).Error; err != nil {
+	if err := tenant.Scope(s.db).Where("name = ?", name).First(&item).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, miss("数据集不存在")
 		}
@@ -135,7 +136,7 @@ func (s *DatasetService) read(item *model.Dataset, limit int) (*engine.Table, in
 func (s *DatasetService) Stats() (map[string]any, error) {
 	count := func(dest any, conds ...any) int64 {
 		var n int64
-		q := s.db.Model(dest)
+		q := tenant.Scope(s.db.Model(dest))
 		if len(conds) > 0 {
 			q = q.Where(conds[0], conds[1:]...)
 		}
@@ -143,7 +144,7 @@ func (s *DatasetService) Stats() (map[string]any, error) {
 		return n
 	}
 	var rows int64
-	_ = s.db.Raw("SELECT coalesce(sum(rows_loaded), 0) FROM runs WHERE status = ?", model.RunSuccess).Scan(&rows).Error
+	_ = s.db.Raw("SELECT coalesce(sum(rows_loaded), 0) FROM runs WHERE status = ? AND tenant_id = ?", model.RunSuccess, tenant.Default).Scan(&rows).Error
 	runs, err := NewRunLister(s.db).latest(8)
 	if err != nil {
 		return nil, err
@@ -167,7 +168,7 @@ func NewRunLister(db *gorm.DB) *runLister { return &runLister{db: db} }
 
 func (r *runLister) latest(limit int) ([]model.Run, error) {
 	items := []model.Run{}
-	err := r.db.Order("id desc").Limit(limit).Find(&items).Error
+	err := tenant.Scope(r.db).Order("id desc").Limit(limit).Find(&items).Error
 	for i := range items {
 		items[i].Log = ""
 	}

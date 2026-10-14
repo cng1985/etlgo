@@ -70,8 +70,19 @@ async function preview(row) {
   }
 }
 
-function download(row, format) {
-  window.open(`/api/datasets/${encodeURIComponent(row.name)}/export?format=${format}`)
+async function download(row, format) {
+  try {
+    const file = await api.exportDataset(row.name, format)
+    const blob = new Blob([file.content], { type: file.contentType || 'text/plain' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = file.fileName || `${row.name}.${format}`
+    link.click()
+    URL.revokeObjectURL(url)
+  } catch (error) {
+    ElMessage.error(error.message)
+  }
 }
 
 async function remove(row) {

@@ -12,6 +12,7 @@ import (
 	"etlgo/internal/config"
 	"etlgo/internal/engine"
 	"etlgo/internal/model"
+	"etlgo/internal/tenant"
 
 	"go.uber.org/fx"
 	"gorm.io/gorm"
@@ -52,7 +53,7 @@ func (s *PipelineService) List() ([]model.Pipeline, error) {
 
 func (s *PipelineService) Get(id uint) (*model.Pipeline, error) {
 	var item model.Pipeline
-	if err := s.db.First(&item, id).Error; err != nil {
+	if err := tenant.Scope(s.db).First(&item, id).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, miss("管道不存在")
 		}
@@ -138,7 +139,12 @@ func (s *PipelineService) StartRun(id uint, trigger string) (*model.Run, error) 
 	if !pipeline.Enabled && trigger == "schedule" {
 		return nil, deny("管道已停用")
 	}
+	tenantID := pipeline.TenantID
+	if tenantID == "" {
+		tenantID = tenant.Default
+	}
 	run := &model.Run{
+		TenantID:     tenantID,
 		PipelineID:   pipeline.ID,
 		PipelineName: pipeline.Name,
 		Trigger:      trigger,
@@ -186,7 +192,7 @@ func (s *PipelineService) ListRuns(pipelineID uint, status string, limit int) ([
 
 func (s *PipelineService) GetRun(id uint) (*model.Run, error) {
 	var item model.Run
-	if err := s.db.First(&item, id).Error; err != nil {
+	if err := tenant.Scope(s.db).First(&item, id).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, miss("运行记录不存在")
 		}
@@ -255,7 +261,7 @@ func (s *PipelineService) execute(runID uint) {
 	}
 	run.RowsLoaded = loaded.Rows
 	logs = append(logs, fmt.Sprintf("写入 %s %s，%d 行", loaded.Kind, loaded.Name, loaded.Rows))
-	if err := s.upsertDataset(pipeline.ID, loaded); err != nil {
+	if err := s.upsertDataset(pipeline, loaded); err != nil {
 		fail(err)
 		return
 	}
@@ -300,7 +306,7 @@ func (s *PipelineService) load(pipeline *model.Pipeline, table *engine.Table) (*
 	}
 }
 
-func (s *PipelineService) upsertDataset(pipelineID uint, loaded *engine.LoadResult) error {
+func (s *PipelineService) upsertDataset(pipeline *model.Pipeline, loaded *engine.LoadResult) error {
 	columns, _ := json.Marshal(loaded.Columns)
 	rowCount := loaded.Rows
 	if loaded.Kind == model.TargetSQLite {
@@ -310,13 +316,14 @@ func (s *PipelineService) upsertDataset(pipelineID uint, loaded *engine.LoadResu
 		}
 	}
 	var item model.Dataset
-	err := s.db.Where("name = ?", loaded.Name).First(&item).Error
+	err := tenant.Scope(s.db).Where("name = ?", loaded.Name).First(&item).Error
 	if err == gorm.ErrRecordNotFound {
 		item = model.Dataset{
+			TenantID:   pipeline.TenantID,
 			Name:       loaded.Name,
 			Kind:       loaded.Kind,
 			Path:       loaded.Path,
-			PipelineID: pipelineID,
+			PipelineID: pipeline.ID,
 			Columns:    string(columns),
 			RowCount:   rowCount,
 		}
@@ -327,7 +334,10 @@ func (s *PipelineService) upsertDataset(pipelineID uint, loaded *engine.LoadResu
 	}
 	item.Kind = loaded.Kind
 	item.Path = loaded.Path
-	item.PipelineID = pipelineID
+	item.PipelineID = pipeline.ID
+	if item.TenantID == "" {
+		item.TenantID = pipeline.TenantID
+	}
 	item.Columns = string(columns)
 	item.RowCount = rowCount
 	return s.db.Save(&item).Error
@@ -361,6 +371,7 @@ func (s *PipelineService) build(in PipelineInput) (*model.Pipeline, error) {
 		return nil, err
 	}
 	return &model.Pipeline{
+		TenantID:        tenant.Default,
 		Name:            name,
 		Description:     strings.TrimSpace(in.Description),
 		Enabled:         enabled,
@@ -424,7 +435,7 @@ func (s *PipelineService) normalizeTarget(kind string, raw json.RawMessage) (str
 
 func (s *PipelineService) Tick() {
 	var pipelines []model.Pipeline
-	if err := s.db.Where("enabled = ? AND schedule_minutes > 0", true).Find(&pipelines).Error; err != nil {
+	if err := tenant.Scope(s.db).Where("enabled = ? AND schedule_minutes > 0", true).Find(&pipelines).Error; err != nil {
 		return
 	}
 	now := time.Now()

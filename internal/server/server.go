@@ -11,7 +11,7 @@ import (
 
 	"etlgo/internal/config"
 	"etlgo/internal/handler"
-	"etlgo/web"
+	"etlgo/internal/protocol"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/fx"
@@ -48,8 +48,8 @@ func New(lc fx.Lifecycle, cfg *config.Config, h *handler.Handler) *http.Server {
 func cors() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Header("Access-Control-Allow-Origin", "*")
-		c.Header("Access-Control-Allow-Headers", "Content-Type")
-		c.Header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS")
+		c.Header("Access-Control-Allow-Headers", "Authorization, Content-Type")
+		c.Header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 		if c.Request.Method == http.MethodOptions {
 			c.AbortWithStatus(http.StatusNoContent)
 			return
@@ -65,7 +65,7 @@ func mountFrontend(r *gin.Engine) {
 	}
 	r.NoRoute(func(c *gin.Context) {
 		if strings.HasPrefix(c.Request.URL.Path, "/api") {
-			c.JSON(http.StatusNotFound, gin.H{"error": "接口不存在"})
+			protocol.Fail(c, protocol.CodeNotFound, "接口不存在")
 			return
 		}
 		rel := strings.TrimPrefix(path.Clean("/"+c.Request.URL.Path), "/")
