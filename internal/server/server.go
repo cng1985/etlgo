@@ -12,6 +12,7 @@ import (
 	"etlgo/internal/config"
 	"etlgo/internal/handler"
 	"etlgo/internal/protocol"
+	"etlgo/web"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/fx"
