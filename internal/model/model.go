@@ -3,10 +3,14 @@ package model
 import "time"
 
 const (
-	SourceCSV    = "csv"
-	SourceJSON   = "json"
-	SourceSQLite = "sqlite"
-	SourceHTTP   = "http"
+	SourceCSV       = "csv"
+	SourceExcel     = "excel"
+	SourceJSON      = "json"
+	SourceSQLite    = "sqlite"
+	SourceHTTP      = "http"
+	SourceMySQL     = "mysql"
+	SourcePostgres  = "pg"
+	SourceSQLServer = "sqlserver"
 
 	TargetSQLite = "sqlite"
 	TargetCSV    = "csv"

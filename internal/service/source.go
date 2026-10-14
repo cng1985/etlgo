@@ -109,12 +109,9 @@ func (s *SourceService) Preview(ctx context.Context, id uint, limit int) (*engin
 
 func (s *SourceService) SaveUpload(name, kind string, r io.Reader, original string) (*model.Source, error) {
 	kind = strings.ToLower(kind)
-	if kind != model.SourceCSV && kind != model.SourceJSON {
-		return nil, bad("仅支持上传 CSV 或 JSON")
-	}
-	ext := ".csv"
-	if kind == model.SourceJSON {
-		ext = ".json"
+	ext, err := uploadExt(kind, original)
+	if err != nil {
+		return nil, err
 	}
 	rel := filepath.Join("uploads", newFileID()+ext)
 	full, err := engine.ResolveUnder(s.dataDir, rel)
@@ -135,7 +132,13 @@ func (s *SourceService) SaveUpload(name, kind string, r io.Reader, original stri
 	if strings.TrimSpace(name) == "" {
 		name = strings.TrimSuffix(original, filepath.Ext(original))
 	}
-	cfg := map[string]any{"path": filepath.ToSlash(rel), "hasHeader": true, "delimiter": ","}
+	cfg := map[string]any{"path": filepath.ToSlash(rel), "hasHeader": true}
+	if kind == model.SourceCSV {
+		cfg["delimiter"] = ","
+	}
+	if kind == model.SourceExcel {
+		cfg["sheet"] = ""
+	}
 	raw, _ := json.Marshal(cfg)
 	return s.Create(SourceInput{Name: name, Type: kind, Config: raw})
 }
@@ -160,6 +163,24 @@ func (s *SourceService) Extract(ctx context.Context, item *model.Source) (*engin
 			hasHeader = *cfg.HasHeader
 		}
 		return engine.ExtractCSV(full, cfg.Delimiter, hasHeader)
+	case model.SourceExcel:
+		var cfg struct {
+			Path      string `json:"path"`
+			Sheet     string `json:"sheet"`
+			HasHeader *bool  `json:"hasHeader"`
+		}
+		if err := json.Unmarshal([]byte(item.Config), &cfg); err != nil {
+			return nil, fmt.Errorf("Excel 配置无效")
+		}
+		full, err := engine.ResolveUnder(s.dataDir, cfg.Path)
+		if err != nil {
+			return nil, err
+		}
+		hasHeader := true
+		if cfg.HasHeader != nil {
+			hasHeader = *cfg.HasHeader
+		}
+		return engine.ExtractExcel(full, cfg.Sheet, hasHeader)
 	case model.SourceJSON:
 		var cfg struct {
 			Path string `json:"path"`
@@ -204,6 +225,19 @@ func (s *SourceService) Extract(ctx context.Context, item *model.Source) (*engin
 			return nil, fmt.Errorf("HTTP 配置无效")
 		}
 		return engine.ExtractHTTP(ctx, cfg.URL, cfg.DataPath)
+	case model.SourceMySQL, model.SourcePostgres, model.SourceSQLServer:
+		cfg, err := decodeDB(json.RawMessage(item.Config))
+		if err != nil {
+			return nil, err
+		}
+		switch item.Type {
+		case model.SourceMySQL:
+			return engine.ExtractMySQL(ctx, cfg)
+		case model.SourcePostgres:
+			return engine.ExtractPostgres(ctx, cfg)
+		default:
+			return engine.ExtractSQLServer(ctx, cfg)
+		}
 	default:
 		return nil, fmt.Errorf("不支持的数据源类型 %s", item.Type)
 	}
@@ -218,7 +252,7 @@ func (s *SourceService) build(in SourceInput) (*model.Source, error) {
 		return nil, bad("名称过长")
 	}
 	switch in.Type {
-	case model.SourceCSV, model.SourceJSON, model.SourceSQLite, model.SourceHTTP:
+	case model.SourceCSV, model.SourceExcel, model.SourceJSON, model.SourceSQLite, model.SourceHTTP, model.SourceMySQL, model.SourcePostgres, model.SourceSQLServer:
 	default:
 		return nil, bad("不支持的数据源类型")
 	}
@@ -249,6 +283,20 @@ func (s *SourceService) validateConfig(kind string, raw json.RawMessage) error {
 		}
 		if cfg.Delimiter != "" && len([]rune(cfg.Delimiter)) != 1 {
 			return bad("分隔符必须是单个字符")
+		}
+	case model.SourceExcel:
+		var cfg struct {
+			Path  string `json:"path"`
+			Sheet string `json:"sheet"`
+		}
+		if err := json.Unmarshal(raw, &cfg); err != nil {
+			return bad("Excel 配置无效")
+		}
+		if _, err := engine.ResolveUnder(s.dataDir, cfg.Path); err != nil {
+			return bad(err.Error())
+		}
+		if err := engine.ValidateSheet(cfg.Sheet); err != nil {
+			return bad(err.Error())
 		}
 	case model.SourceJSON:
 		var cfg struct {
@@ -286,8 +334,43 @@ func (s *SourceService) validateConfig(kind string, raw json.RawMessage) error {
 		if !strings.HasPrefix(cfg.URL, "http://") && !strings.HasPrefix(cfg.URL, "https://") {
 			return bad("仅支持 http 或 https 地址")
 		}
+	case model.SourceMySQL, model.SourcePostgres, model.SourceSQLServer:
+		cfg, err := decodeDB(raw)
+		if err != nil {
+			return err
+		}
+		if _, err := engine.PrepareDB(kind, cfg); err != nil {
+			return bad(err.Error())
+		}
 	}
 	return nil
+}
+
+func decodeDB(raw json.RawMessage) (engine.DBConfig, error) {
+	var cfg engine.DBConfig
+	if err := json.Unmarshal(raw, &cfg); err != nil {
+		return cfg, bad("数据库配置无效")
+	}
+	return cfg, nil
+}
+
+func uploadExt(kind, original string) (string, error) {
+	switch kind {
+	case model.SourceCSV:
+		return ".csv", nil
+	case model.SourceJSON:
+		return ".json", nil
+	case model.SourceExcel:
+		ext := strings.ToLower(filepath.Ext(original))
+		switch ext {
+		case ".xlsx", ".xlsm", ".xltx":
+			return ext, nil
+		default:
+			return "", bad("Excel 仅支持 .xlsx、.xlsm、.xltx")
+		}
+	default:
+		return "", bad("仅支持上传 CSV、JSON 或 Excel")
+	}
 }
 
 func newFileID() string {

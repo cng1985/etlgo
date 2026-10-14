@@ -2,7 +2,7 @@
 
 一个可运行的 ETL 控制台。后端使用 Go、Gin、GORM、Uber FX 和 SQLite，前端使用 Vue 3、JavaScript 和 Element Plus。
 
-管道把数据从 CSV、JSON、SQLite 或 HTTP 抽取出来，按顺序做过滤、选列、重命名、类型转换和派生计算，再写入 SQLite 表或 CSV / JSON 文件。
+管道把数据从 CSV、Excel、JSON、SQLite、MySQL、PostgreSQL、SQL Server 或 HTTP 抽取出来，按顺序做过滤、选列、重命名、类型转换和派生计算，再写入 SQLite 表或 CSV / JSON 文件。
 
 ## 启动
 
@@ -72,6 +72,19 @@ frontend               Vue 3 控制台
 动态查询走 `POST /api/v1/query/search`、`/query/list`、`/query/one`，模型名如 `pageForSource`、`listPipeline`、`oneRun`。过滤条件只接受白名单字段，排序字段同样白名单，不会把过滤值拼进 SQL。请求里不能带 `tenantId`，服务端固定使用当前租户。
 
 文件上传使用 `POST /api/v1/file/upload`，表单字段为 `file`、`businessType`、`businessId`。进程探针 `GET /health` 不要求令牌。
+
+## 数据源
+
+| 类型 | 配置 |
+| --- | --- |
+| `csv` | `path`、`delimiter`、`hasHeader`。路径相对于数据目录 |
+| `excel` | `path`、`sheet`、`hasHeader`。支持 `.xlsx`、`.xlsm`、`.xltx`，`sheet` 留空时读第一张工作表 |
+| `mysql` | `host`、`port`、`user`、`password`、`database`、`query`。端口默认 3306 |
+| `pg` | 同上，另有 `sslMode`：`disable`、`require`、`verify-ca`、`verify-full`。端口默认 5432 |
+| `sqlserver` | 同上，`sslMode` 表示加密：`disable`、`false`、`true`。端口默认 1433 |
+| `json` / `sqlite` / `http` | 保持原有文件、SQLite 查询和 HTTP JSON 配置 |
+
+数据库查询只允许单条 `SELECT` 或 `WITH`。上传接口支持 CSV、JSON 和 Excel。
 
 ## 转换步骤
 
