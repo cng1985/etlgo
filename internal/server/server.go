@@ -2,14 +2,16 @@ package server
 
 import (
 	"context"
+	"io"
+	"io/fs"
 	"net/http"
-	"os"
-	"path/filepath"
+	"path"
 	"strings"
 	"time"
 
 	"etlgo/internal/config"
 	"etlgo/internal/handler"
+	"etlgo/web"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/fx"
@@ -57,24 +59,42 @@ func cors() gin.HandlerFunc {
 }
 
 func mountFrontend(r *gin.Engine) {
-	dist := "frontend/dist"
-	info, err := os.Stat(dist)
-	if err != nil || !info.IsDir() {
-		return
+	dist, err := fs.Sub(web.Dist, "dist")
+	if err != nil {
+		panic(err)
 	}
 	r.NoRoute(func(c *gin.Context) {
 		if strings.HasPrefix(c.Request.URL.Path, "/api") {
 			c.JSON(http.StatusNotFound, gin.H{"error": "接口不存在"})
 			return
 		}
-		rel := strings.TrimPrefix(filepath.Clean(c.Request.URL.Path), "/")
-		file := filepath.Join(dist, rel)
+		rel := strings.TrimPrefix(path.Clean("/"+c.Request.URL.Path), "/")
 		if rel != "" && rel != "." {
-			if st, err := os.Stat(file); err == nil && !st.IsDir() {
-				c.File(file)
+			if info, err := fs.Stat(dist, rel); err == nil && !info.IsDir() {
+				serveEmbedded(c, dist, rel)
 				return
 			}
 		}
-		c.File(filepath.Join(dist, "index.html"))
+		serveEmbedded(c, dist, "index.html")
 	})
+}
+
+func serveEmbedded(c *gin.Context, fsys fs.FS, name string) {
+	f, err := fsys.Open(name)
+	if err != nil {
+		c.Status(http.StatusNotFound)
+		return
+	}
+	defer f.Close()
+	stat, err := f.Stat()
+	if err != nil || stat.IsDir() {
+		c.Status(http.StatusNotFound)
+		return
+	}
+	rs, ok := f.(io.ReadSeeker)
+	if !ok {
+		c.Status(http.StatusInternalServerError)
+		return
+	}
+	http.ServeContent(c.Writer, c.Request, name, stat.ModTime(), rs)
 }
